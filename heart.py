@@ -3,6 +3,40 @@ import math
 import random
 import time
 
+def get_evenly_spaced_angles(num_points):
+    """
+    Approximates the curve to find angles that result in evenly 
+    spaced points along the heart's perimeter based on arc length.
+    """
+    steps = 2000
+    angles = [i * (math.pi * 2) / steps for i in range(steps)]
+    
+    # Compute physical distances on the base curve
+    distances = [0.0]
+    for i in range(1, steps):
+        a1, a2 = angles[i-1], angles[i]
+        x1 = 16 * (math.sin(a1) ** 3)
+        y1 = 13 * math.cos(a1) - 5 * math.cos(2 * a1) - 2 * math.cos(3 * a1) - math.cos(4 * a1)
+        x2 = 16 * (math.sin(a2) ** 3)
+        y2 = 13 * math.cos(a2) - 5 * math.cos(2 * a2) - 2 * math.cos(3 * a2) - math.cos(4 * a2)
+        distances.append(distances[-1] + math.hypot(x2 - x1, y2 - y1))
+        
+    total_length = distances[-1]
+    target_spacing = total_length / num_points
+    
+    a_vals = []
+    current_target = 0.0
+    
+    # Interpolate angles based on uniform distance segments
+    for i in range(steps - 1):
+        while distances[i] <= current_target < distances[i+1]:
+            fraction = (current_target - distances[i]) / (distances[i+1] - distances[i])
+            a_vals.append(angles[i] + fraction * (angles[i+1] - angles[i]))
+            current_target += target_spacing
+            if len(a_vals) == num_points:
+                return a_vals
+    return a_vals
+
 def draw_flower(t, c):
     h = t.heading()
     t.penup()
@@ -14,11 +48,10 @@ def draw_flower(t, c):
     t.dot(4, "white")
     t.setheading(h)
 
-def draw_inner_heart(t, colors):
+def draw_inner_heart(t, colors, a_vals):
     t.penup()
-    # Draw the inner heart using spaced out multi-color flowers
-    for i in range(0, 120, 4):
-        a = i * (math.pi * 2) / 120
+    # Draw the inner heart using the evenly spaced angles (skipping every 4 for breathing room)
+    for a in a_vals[::4]:
         x = 16 * (math.sin(a) ** 3) * 2.5
         y = (13 * math.cos(a) - 5 * math.cos(2 * a) - 2 * math.cos(3 * a) - math.cos(4 * a)) * 2.5
         
@@ -48,7 +81,6 @@ screen = turtle.Screen()
 screen.bgcolor('black')
 screen.title("Twinkling Heart")
 
-# Lowered tracer to 2 for a noticeably slower, relaxed drawing pace
 screen.tracer(2) 
 
 t = turtle.Turtle()
@@ -58,12 +90,13 @@ t.hideturtle()
 colors = ['red', 'blue', 'lime', 'yellow', 'cyan', 'magenta', 'pink', 'orange', 'violet']
 num_lines = 120
 
-# Initial animated draw
-draw_inner_heart(t, colors)
+# Generate perfectly uniform angles based on curve distance
+a_vals = get_evenly_spaced_angles(num_lines)
 
-for i in range(num_lines):
-    a = i * (math.pi * 2) / num_lines
-    
+# Initial animated draw
+draw_inner_heart(t, colors, a_vals)
+
+for a in a_vals:
     bx = 16 * (math.sin(a) ** 3)
     by = 13 * math.cos(a) - 5 * math.cos(2 * a) - 2 * math.cos(3 * a) - math.cos(4 * a)
     
@@ -82,19 +115,15 @@ for i in range(num_lines):
 screen.update() 
 time.sleep(1)   
 
-# Turn off tracer completely for the instant LED flashing effect
 screen.tracer(0) 
 
 try:
     while True:
         t.clear()
         
-        # The inner heart will pick new random colors every frame
-        draw_inner_heart(t, colors)
+        draw_inner_heart(t, colors, a_vals)
         
-        for i in range(num_lines):
-            a = i * (math.pi * 2) / num_lines
-            
+        for a in a_vals:
             bx = 16 * (math.sin(a) ** 3)
             by = 13 * math.cos(a) - 5 * math.cos(2 * a) - 2 * math.cos(3 * a) - math.cos(4 * a)
             
@@ -104,7 +133,6 @@ try:
             sx = bx * 2.5
             sy = by * 2.5
             
-            # The outer lines and flowers also get new random colors to simulate LEDs
             c = random.choice(colors)
             t.color(c)
             
@@ -112,8 +140,6 @@ try:
             draw_flower(t, c)
             
         screen.update()
-        
-        # Controls how fast the colors change (LED blink speed)
         time.sleep(0.15)
         
 except turtle.Terminator:
